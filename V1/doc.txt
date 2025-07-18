@@ -1,0 +1,245 @@
+Just for my clarification:
+
+Issues: nesting of classes into each other: 
+        to access tile type or pos:
+        game.level.lvl[index]. /pos.x/y or /type
+
+ToDo:
+    first and formost, never done: MAKE SURE THE FUCKING GAME WORKS
+        Get your feature creep under control
+    
+    DONE rewrite level parsing:
+        -new data format: [type][connections][initial state]
+        -for example: 'p10' or 'd11'
+        -plate (p), connected to 1, deactivated
+        -if triggered, changes state of all tiles with con-flag '1'
+        -in this case: triggers door to close
+        -use special connection flag ($? x? ??) to indicate level switch
+        
+        Parsing logic (input level txt, output List of Tiles)
+            finds start marker (something like LVL 1/2/3 etc?)
+            gets content (read lines, strip of all ' ')
+            goes through content line by line (include counter for y coordinate)
+            #read in steps of 3 (length of one tile's meta data):
+                for i in range(0, len(line), 3): #line being current c, starts at 0 and steps of 3
+                    tile_str = line[i:i+3]  #gets all three characters
+                    type = line[0]
+                    conn = line[1]
+                    state = line[2]
+                    pos = Pair.new_pair(y_counter, i)
+
+                    lvl.append(new_tile(pos, type, conn, state))
+            #after all tiles have been parsed and created, link them together
+                for t1 in lvl:
+                    for t2 in lvl:
+                        if t1.equal(t2) or t1.conn_ID != t2.conn_ID: continue   #skip if same tile or not connected
+                            if t1.type in ACTIVATORS and t2.type in RECEIVERS:  #skip if not receiver and sender
+                                t1.activation_targets.append(t2.pos)
+                                t2.activation_sources.append(t1.pos)
+                
+            #later: when tile receives activation-status change or update, look at activation_sources
+                #only if every activation source is activated itself, change activation
+
+            Tile-Class:
+                type: str
+                pos: Pair
+                state: bool
+                activ_targets: list(Pair)
+                activ-sources: list(Pair)
+                connID: int
+
+
+    MAJOR STUFF:
+
+        DONE-rewrite random_scatter to work with the new Level-Tile system
+            -implement while check to scatter player if on illegal tile
+
+        DONE-rewrite all player movement to work with new Level-Tile system (wtf is game.level.lvl[i].pos.x)
+
+        DONE-move levels to a lookuptabel or txt or something
+
+        DONE(player check loc, check next)
+            -implement universal activation functions ("on same tile", "on next tile")
+            -update every tile in game.level every move
+            -rework coins to work on activation (floor is activated == coin?)
+            -link to ACTIVATORS<>RECEIVERS
+            -add tile-type specific behaviour
+
+        DONE-get tile-state and connection to work (see current problems below) 
+
+        DONE-implement level interconnectivity
+            DONE-use new format in levels.txt
+                -"%exit%"- format
+                    +use additional meta data below:
+                        %exit%:
+                            (4, 5),(03)
+                            (pos), (nextID)
+                        %%%
+            DONE-exits stored in level-class: list of tuple (exit position, next level id)
+            -implement multiple spawns with IDs depending on exit the player is coming from
+
+        DONE-implement callback 
+
+        DONE-implement multi-colored keys
+            +add 'r', 'g', 'b' support for doors and keys
+                in connID, add str support
+                6 new sprites
+
+        -build some levels
+
+        -some problem fixing
+
+        -implement spells:
+            +fireball activates baziers
+            +lightning activates tesla coils
+            +consume charges that can be found through out the level
+
+        -implement entity class
+            -class for all entity like things, mobs, fireballs, maybe even secret doors?
+
+        -implement mobs (in entity class?)
+
+        -implement player attacks
+            -fireball
+            -lightning?
+            -melee hit
+
+        -implement Boxes that the player can push
+            -let boxes block projectiles
+            -let boxes activate pressure plates
+            -implement timed pressure plates
+
+        -inventory and equipment system
+            -armor and weapons with effects on gameplay
+            -different weaponss have different attacks
+
+    
+    FIXES AND REWORKS:
+        DONE-rewrite level.get_location:
+            -reduce every input to lowest-level data type (2d str) and exclusively work with that (cut about 40 lines)
+            -return ALL tiles of type key as list of tiles?
+            -do the same with level.print_level
+        DONE-catch level errors when no spawn is given
+        -update Tile.moveable to include cut off tiles (like behind walls etc, everything the player cannot access as of now)
+        -add random scatter inaccessibility check (path to trap)
+
+    NEW MINOR FEATURES:
+        DONE-implement fountains (give the player a random effect when interacted)
+        -lasers
+        -more mobs
+        -puzzles
+        -boss fight
+        -title screen
+        -level select screen
+        -music, sound effects
+        -explosion effect when fireball hits anything
+        -fireball upgrades
+        -shop
+        -different enemies have different resistances
+
+    
+
+Current Problems:
+    !CLEAR STRUCTURE OF WHAT IS HANDLED WHERE!^
+    FIX THE DOOR MOVEMENT OR REVERT TO SIMPLE
+    DONE-fix doors
+    DONE-fix coins
+    DONE-fix secret door
+    DONE-fix lever
+    -fix pressure plate
+    DONE-fix secret doors to spawn them as true
+    DONE-tile-activation is broken
+
+
+Mind sketch: how to handle activation states:
+    -updates sprite every update loop (for now, optimize later idfc)
+    Activators:
+        -every update loop, check for activation condition
+        -OR get triggered by player.check_next_loc
+        -if condition is true, set state to high
+        -else, set state to false
+        -couple toggle and hold to type
+        -TYPES OF ACTIVATORS:
+            *pressure plate: 
+                -checks every update loop if something is on the same tile
+                -if yes, activate, else, false
+            *lever: 
+                -triggered by player.check_next_loc
+                -when receiving activation-signal: invert state
+                -wait for next signal
+    Receivers:
+        -every update loop, check all Activators
+        -if all activators are high: activate
+        -couple toggle or hold to type
+        TYPES OF RECEIVERS:
+            *door:
+                -closed when state false, open when true
+                -every update loop, checks all sources
+                -open door if all sources are true
+            *door_with_key:
+                -closed on default-->state is low
+                -updates when on next tile
+                -if key in player inv: toggle state high and switch sprite
+            *secret door:
+                -open when state false, closed if activate
+                -every update loop, check all sources
+                -open if all sources true
+    plain:
+        -do nothing but exist
+
+Structure of Project:
+
+    game: 
+        player: Player 
+            pos: Pair
+            inv: Item[]
+                name: str
+                type: str
+                sprite: str
+
+        level: Level  
+            ID: int                 --which level to load (0 for empty, 1+ for custom etc)
+            spawn: Pair             --finds "u" as spawn in the 2d str
+            width: int              --fins length of inner list
+            height: int             --finds length of outer list
+
+            lvl: Tile[]             --list of tile objects representing the level (rendered from the 2d str)
+                type: str           --what kind of tile (floor, wall etc)
+                pos: Pair           --x and y cords 
+                activ_sources: list[Pair]
+                activ_targets: list[Pair]
+                moveable: bool      --checks for type in lookup table for moveable tile types and safes 
+
+        moves: Moves[]
+
+
+    -main creates game
+    -game has both Level and Player object
+    -Level: 
+        lvl ID is the number of the level and determines how it looks (level name)
+        lvl is a list of Tiles
+        width and height are the size of the original 2d str list 
+    -Tiles:
+        pos is a pair object containing its x and y position
+        type is the tile type
+        other stuff is not yet important, implement later
+    -pair:
+        is simply a 2d coordinate, made of x and y
+        contains also an activation-flag used to activate doors and shit
+
+
+    Sooooooooo....
+        game->level->lvl:tile[]->pos:pair->x,y
+        |      
+        V
+        player->pos:pair->x,y
+        |
+        V
+        inv:items[]
+
+        game is made of a Level-object, 
+            which contains a Tile list, 
+                those contains the tile type 
+                                and pos as a pair 
+                                and 2 lists representing the connections
+                                and the tiles state
